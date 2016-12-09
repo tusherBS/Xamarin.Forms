@@ -43,6 +43,7 @@ namespace Xamarin.Forms.Platform.iOS
 
 			if (disposing && Control != null && ManageNativeControlLifetime)
 			{
+				Control.RemoveFromSuperview();
 				Control.Dispose();
 				Control = null;
 			}
