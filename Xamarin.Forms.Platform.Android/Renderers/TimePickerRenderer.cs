@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using Android.App;
 using Android.Content.Res;
+using Android.Util;
 using Android.Widget;
 using ADatePicker = Android.Widget.DatePicker;
 using ATimePicker = Android.Widget.TimePicker;
@@ -63,9 +64,10 @@ namespace Xamarin.Forms.Platform.Android
 			if (e.PropertyName == TimePicker.TimeProperty.PropertyName ||
 			    e.PropertyName == TimePicker.FormatProperty.PropertyName)
 				SetTime(Element.Time);
-
-			if (e.PropertyName == TimePicker.TextColorProperty.PropertyName)
+			else if (e.PropertyName == TimePicker.TextColorProperty.PropertyName)
 				UpdateTextColor();
+			else if (e.PropertyName == TimePicker.FontAttributesProperty.PropertyName || e.PropertyName == TimePicker.FontFamilyProperty.PropertyName || e.PropertyName == TimePicker.FontSizeProperty.PropertyName)
+				UpdateFont();
 		}
 
 		internal override void OnFocusChangeRequested(object sender, VisualElement.FocusRequestArgs e)
@@ -108,6 +110,12 @@ namespace Xamarin.Forms.Platform.Android
 		void SetTime(TimeSpan time)
 		{
 			Control.Text = DateTime.Today.Add(time).ToString(Element.Format);
+		}
+
+		void UpdateFont()
+		{
+			Control.Typeface = Element.ToTypeface();
+			Control.SetTextSize(ComplexUnitType.Sp, (float)Element.FontSize);
 		}
 
 		void UpdateTextColor()
