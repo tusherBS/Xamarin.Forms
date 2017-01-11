@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Windows.System;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -44,6 +45,8 @@ namespace Xamarin.Forms.Platform.WinRT
 		bool _cachedSpellCheckSetting;
 		CancellationTokenSource _cts;
 		bool _internalChangeFlag;
+		bool _ctrlKeyActive;
+		int _cachedSelectionLength;
 
 		public FormsTextBox()
 		{
@@ -237,19 +240,75 @@ namespace Xamarin.Forms.Platform.WinRT
 
 		void OnSelectionChanged(object sender, RoutedEventArgs routedEventArgs)
 		{
-			if (!IsPassword)
-			{
-				return;
-			}
+			// Cache this value for later use as explained in OnKeyDown below
+			_cachedSelectionLength = SelectionLength;
+		}
 
-			// Prevent the user from selecting any text in the password box by forcing all selection
-			// to zero-length at the end of the Text
-			// This simulates the "do not allow clipboard copy" behavior the PasswordBox control has
-			if (SelectionLength > 0 || SelectionStart < Text.Length)
+		// Because the implementation of a password entry is based around inheriting from TextBox (via FormsTextBox), there
+		// are some inaccuracies in the behavior. OnKeyDown is what needs to be used for a workaround in this case because 
+		// there's no easy way to disable specific keyboard shortcuts in a TextBox, so key presses are being intercepted and 
+		// handled accordingly.
+		protected override void OnKeyDown(KeyRoutedEventArgs e)
+		{
+			if (IsPassword)
 			{
-				SelectionLength = 0;
-				SelectionStart = Text.Length;
+				// The _ctrlKeyActive flag is used to track if that key is pressed; we want to pretend Ctrl is not actively being
+				// used by treating the key routing as handled.
+				if (e.Key == VirtualKey.Control)
+				{
+					if (e.Key == VirtualKey.Control)
+					{
+						_ctrlKeyActive = true;
+						e.Handled = true;
+					}
+				}
+				// The shift, tab, and directional (Home/End/PgUp/PgDown included) keys can be used to select text and should otherwise
+				// be ignored.
+				else if (
+					e.Key == VirtualKey.Shift ||
+					e.Key == VirtualKey.Tab ||
+					e.Key == VirtualKey.Left ||
+					e.Key == VirtualKey.Right ||
+					e.Key == VirtualKey.Up ||
+					e.Key == VirtualKey.Down ||
+					e.Key == VirtualKey.Home ||
+					e.Key == VirtualKey.End ||
+					e.Key == VirtualKey.PageUp ||
+					e.Key == VirtualKey.PageDown)
+				{
+					base.OnKeyDown(e);
+					return;
+				}
+				// For anything else, continue on (calling base.OnKeyDown) and then if Ctrl is still being pressed, do nothing about it.
+				// The tricky part here is that the SelectionLength value needs to be cached because in an example where the user entered
+				// '123' into the field and selects all of it, the moment that any character key is pressed to replace the entire string,
+				// the SelectionLength is equal to zero, which is not what's desired. Entering a key will thus remove the selected number
+				// of characters from the Text value. OnKeyDown is fortunately called before OnSelectionChanged which enables this.
+				else
+				{
+					// If the C or X keys (copy/cut) are pressed while Ctrl is active, ignore handing them at all. Undo and Redo (Z/Y) should 
+					// be ignored as well as this emulates the regular behavior of a PasswordBox.
+					if ((e.Key == VirtualKey.C || e.Key == VirtualKey.X || e.Key == VirtualKey.Z ||  e.Key == VirtualKey.Y) && _ctrlKeyActive)
+					{
+						e.Handled = false;
+						return;
+					}
+
+					base.OnKeyDown(e);
+					if (_cachedSelectionLength > 0 && !_ctrlKeyActive)
+						Text = Text.Remove(SelectionStart, _cachedSelectionLength);
+				}
 			}
+			else
+				base.OnKeyDown(e);
+		}
+
+		protected override void OnKeyUp(KeyRoutedEventArgs e)
+		{
+			base.OnKeyUp(e);
+			// Track use of Ctrl for OnKeyDown as explained above
+			if (e.Key == VirtualKey.Control)
+				_ctrlKeyActive = false;
 		}
 
 		void OnTextChanged(object sender, Windows.UI.Xaml.Controls.TextChangedEventArgs textChangedEventArgs)
