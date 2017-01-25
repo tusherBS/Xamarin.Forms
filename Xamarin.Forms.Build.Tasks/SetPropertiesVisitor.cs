@@ -125,7 +125,7 @@ namespace Xamarin.Forms.Build.Tasks
 				// Collection element, implicit content, or implicit collection element.
 				string contentProperty;
 				var parentVar = Context.Variables[(IElementNode)parentNode];
-				if (parentVar.VariableType.ImplementsInterface(Module.Import(typeof (IEnumerable))))
+				if (parentVar.VariableType.ImplementsInterface(Module.Import(typeof (IEnumerable))) && parentVar.VariableType.GetMethods(md => md.Name == "Add" && md.Parameters.Count == 1, Module).Any())
 				{
 					var elementType = parentVar.VariableType;
 					if (elementType.FullName != "Xamarin.Forms.ResourceDictionary" && elementType.Resolve().BaseType.FullName != "Xamarin.Forms.ResourceDictionary")
@@ -149,7 +149,8 @@ namespace Xamarin.Forms.Build.Tasks
 					if (parentNode is IElementNode && ((IElementNode)parentNode).SkipProperties.Contains (propertyName))
 						return;
 					Context.IL.Append(SetPropertyValue(Context.Variables[(IElementNode)parentNode], name, node, Context, node));
-				}
+				} else
+					throw new XamlParseException($"Can not set the content of {((IElementNode)parentNode).XmlType.Name} as it doesn't have a ContentPropertyAttribute", node);
 			}
 			else if (IsCollectionItem(node, parentNode) && parentNode is ListNode)
 			{
